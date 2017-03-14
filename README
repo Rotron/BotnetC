@@ -1,0 +1,5 @@
+
+DBOTNET IMPLEMENTATION
+Dbotnet is an implementation of botnet for mini project.
+It can be used for remote administration of machines (shutdown,restart etc).
+it would require one of the computers to be a command and control server and other machines will be listening to the C & C server.
