@@ -62,8 +62,7 @@ int bot_run_cmd (int s, char *cmd)
   return 0;
 }
 
-int
-bot_parse (int s, char *msg)
+int bot_parse (int s, char *msg)
 {
   char *target = msg;
   char *cmd = NULL;
@@ -88,8 +87,7 @@ bot_parse (int s, char *msg)
 }
 
 
-int
-bot_connect_cc (char *ip, int port)
+int bot_connect_cc (char *ip, int port)
 {
   char                 msg[1024];
   struct sockaddr_in   server;
