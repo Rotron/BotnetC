@@ -15,7 +15,7 @@
 
 #define CC_SERVER "127.0.0.1"
 #define CC_PORT 9999
-#define MAX_BUF 1024
+#define MAX_BUF 9216
 
 //for error messages
 #define PEXIT(str) {perror (str); exit(1);}
@@ -72,7 +72,6 @@ int bot_parse (int s, char *msg)
       printf ("!! Malformed command. Should be TARGET:command\n");
       return -1;
     }
-
   *cmd = 0;
   cmd++;
   cmd[strlen(cmd) - 1] = 0;
