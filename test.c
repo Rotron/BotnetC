@@ -9,6 +9,8 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <time.h>
+#include <errno.h>
+
 
 
 #define PORT 9999
@@ -63,6 +65,94 @@ int send_toclients (int ex_tcp,char* buffer,int len)
 	return 0;
 }
 
+int filesend(int s,char* filename)
+{
+				int LENGTH = 512;
+				char sdbuf[LENGTH]; // Send buffer
+		    printf("[Server] Sending %s to the Client...", filename);
+		    FILE *fs = fopen(filename, "r");
+		    if(fs == NULL)
+		    {
+		        //fprintf(stderr, "ERROR: File %s not found on server. (errno = %d)\n", filename, errno);
+						exit(1);
+		    }
+
+		    bzero(sdbuf, LENGTH);
+		    int fs_block_sz;
+		    while((fs_block_sz = fread(sdbuf, sizeof(char), LENGTH, fs))>0)
+		    {
+						//printf("%s",sdbuf);
+						if(send(s, sdbuf, fs_block_sz, 0) < 0)
+		        {
+		          //  fprintf(stderr, "ERROR: Failed to send file %s. (errno = %d)\n", fliename, errno);
+		            exit(1);
+		        }
+		        bzero(sdbuf, LENGTH);
+		    }
+		    printf("Ok sent to client!\n");
+		    //success = 1;
+		    //close(nsockfd);
+		    printf("[Server] Connection with Client closed. Server will wait now...\n");
+		    //while(waitpid(-1, NULL, WNOHANG) > 0);
+				return 0;
+
+}
+
+//receiving file at the server
+int filerecv(int s,char* filename)
+{
+	char* fr_name = filename;
+  int LENGTH = 512;
+  char revbuf[LENGTH];
+	int errno;
+  FILE *fr = fopen(fr_name, "w");
+  // bot_print(s,"CODEFSEND");
+  // bot_print (s, "^");
+  // bot_print(s,cmd);
+	send(s,"READY",5,0);
+  if(fr == NULL)
+  {
+    printf("File %s Cannot be opened.\n", fr_name);
+    // bot_print (s, bot_id);
+    // bot_print (s, ":");
+    // bot_print(s,"file cannot be opened");
+		exit(1);
+  }
+  else
+  {
+    bzero(revbuf, LENGTH);
+    int fr_block_sz = 0;
+    while((fr_block_sz = recv(s, revbuf, LENGTH, 0)) > 0)
+    {
+      int write_sz = fwrite(revbuf, sizeof(char), fr_block_sz, fr);
+      if(write_sz < fr_block_sz)
+      {
+              perror("File write failed.\n");
+      }
+      bzero(revbuf, LENGTH);
+      if (fr_block_sz == 0 || fr_block_sz != 512)
+      {
+        break;
+      }
+  }
+  if(fr_block_sz < 0)
+  {
+    if (errno == EAGAIN)
+    {
+      printf("recv() timed out.\n");
+    }
+    else
+    {
+      fprintf(stderr, "recv() failed due to errno = %d\n", errno);
+    }
+  }
+    printf("Ok received from server!\n");
+    //bot_print(s,"received from server");
+    fclose(fr);
+  }
+  return 0;
+
+}
 int main()
 {
 	 fd_set	rfds;
@@ -76,7 +166,7 @@ int main()
 	 int **list ,*n;
 	 int g_len ;
 	 int sock1,sock2 = 0,ops=1;
-
+	 char* filename;
 	 //create initial socket`
 	 list = &s_accept;
 	 n = &n_ports;
@@ -86,6 +176,7 @@ int main()
 	 server.sin_family = AF_INET ;
  	 server.sin_port = htons(PORT);
 
+	 /*adds a entry to the list*/
 	 sock1 = add_handler(list , n);
 	 (*list)[sock1] = socket (PF_INET,SOCK_STREAM,0);
 
@@ -100,7 +191,7 @@ int main()
 	 sock2 = bind((*list)[sock1],(struct sockaddr *) &server ,g_len);
 	 if (sock2 < 0 )	perror("bind: ");
 
-	 sock2 = listen((*list)[j],10);
+	 sock2 = listen((*list)[sock1],10);
 
 	 //now starts the main loop
 	 while (loop)
@@ -131,6 +222,7 @@ int main()
 		 /* 4 sec Timeout*/
 		 tv.tv_sec = 4;
 		 tv.tv_usec = 0;
+
 		 if ((n_res = select(max,&rfds,NULL, NULL , &tv)) < 0 )
 		 {
 		 		perror("select:");
@@ -156,7 +248,7 @@ int main()
 				 /*---------------------------------------------------*/
 				 for(i=0; i < n_comm ; i++)
 				 {
-					 	if (s_comm[i]== -1 )
+					 	if (s_comm[i] == -1 )
 							continue;
 
 						if(FD_ISSET(s_comm[i], &rfds))
@@ -165,9 +257,30 @@ int main()
 							{
 								//0 bytes read removing socket
 								s_comm[i]= -1;
+								continue;
 							}
 							buffer[len] = 0;
+
+
 							write (1,buffer , len);
+
+							if (strchr(buffer,'^'))
+							{
+
+								filename=strchr(buffer,'^');
+								*filename=0;
+								filename++;
+								filename[strlen(filename)]=0;
+								if(strcasecmp(buffer,"CODEFSEND")==0)
+								{
+									filesend(s_comm[i],filename);
+								}
+								else if(strcasecmp(buffer,"CODEFRECV")==0)
+								{
+									filerecv(s_comm[i],filename);
+								}
+								break;
+							}
 							send_toclients(i,buffer,len);
 						}
 
@@ -177,9 +290,10 @@ int main()
 							{
 								close (s_comm[i]);
 								s_comm[i] = -1 ;
-
+								//printf("closing socket \n");
 							}
 						}
+					//	printf("looping over connected sockets \n");
 				 }
 
 				 /* Check accept sockets */
@@ -193,6 +307,7 @@ int main()
 						 j = add_handler(&s_comm, &n_comm);
 						 s_comm[j] = accept (s_accept[i] , (struct sockaddr*) &client,&sa_len);
 						 use_sin = s_comm[j];
+						//  printf("accepted connection \n ");
 					 }
 					 else
 					 {
